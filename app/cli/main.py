@@ -1,6 +1,6 @@
 import typer
 
-from app.cli.commands import audit
+from app.cli.commands import audit, report
 
 VERSION = "0.1.0"
 
@@ -10,6 +10,7 @@ app = typer.Typer(
 )
 
 app.add_typer(audit.app, name="audit")
+app.add_typer(report.app, name="report")
 
 
 @app.callback()

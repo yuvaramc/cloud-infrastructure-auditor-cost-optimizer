@@ -63,15 +63,93 @@ Install the project with development dependencies:
 pip install -e ".[dev]"
 ```
 
-## CLI Entry Point
+## CLI Usage
 
-The project provides the following CLI command:
+The CLI can be run during development with:
 
 ```text
-cloud-auditor
+python -m app.cli.main
 ```
 
-CLI commands will be implemented incrementally as the project develops.
+### Show CLI Help
+
+```text
+python -m app.cli.main --help
+```
+
+### Show Version
+
+```text
+python -m app.cli.main version
+```
+
+### Audit Resources
+
+Run an audit with the default options:
+
+```text
+python -m app.cli.main audit
+```
+
+Specify a provider, region, and resource type:
+
+```text
+python -m app.cli.main audit --provider aws --region us-east-1 --resource compute
+```
+
+Supported providers:
+
+- `aws`
+- `gcp`
+
+Supported resource types:
+
+- `all`
+- `compute`
+- `storage`
+- `network`
+
+### Generate Reports
+
+Run the report command with default options:
+
+```text
+python -m app.cli.main report
+```
+
+Specify the report format, output file, and provider:
+
+```text
+python -m app.cli.main report --format json --output audit.json --provider gcp
+```
+
+### Clean Up Resources
+
+The cleanup command uses dry-run mode by default:
+
+```text
+python -m app.cli.main cleanup
+```
+
+Specify a provider and resource:
+
+```text
+python -m app.cli.main cleanup --provider gcp --resource compute
+```
+
+To explicitly enable execution mode:
+
+```text
+python -m app.cli.main cleanup --provider gcp --resource compute --execute
+```
+
+Use `--help` with any command to view its available options:
+
+```text
+python -m app.cli.main audit --help
+python -m app.cli.main report --help
+python -m app.cli.main cleanup --help
+```
 
 ## Testing
 

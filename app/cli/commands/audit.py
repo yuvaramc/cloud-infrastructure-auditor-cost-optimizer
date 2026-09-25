@@ -2,6 +2,9 @@ import typer
 
 app = typer.Typer(help="Audit cloud infrastructure resources.")
 
+SUPPORTED_PROVIDERS = ["aws", "gcp"]
+SUPPORTED_RESOURCES = ["all", "compute", "storage", "network"]
+
 
 @app.callback(invoke_without_command=True)
 def audit(
@@ -24,7 +27,20 @@ def audit(
     ),
 ) -> None:
     """Run infrastructure audit checks."""
+
+    if provider.lower() not in SUPPORTED_PROVIDERS:
+        raise typer.BadParameter(
+            f"Unsupported provider '{provider}'. "
+            f"Choose from: {', '.join(SUPPORTED_PROVIDERS)}"
+        )
+
+    if resource.lower() not in SUPPORTED_RESOURCES:
+        raise typer.BadParameter(
+            f"Unsupported resource '{resource}'. "
+            f"Choose from: {', '.join(SUPPORTED_RESOURCES)}"
+        )
+
     typer.echo(
-        f"Audit command selected: provider={provider}, "
-        f"region={region}, resource={resource}"
+        f"Audit command selected: provider={provider.lower()}, "
+        f"region={region}, resource={resource.lower()}"
     )

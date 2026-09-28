@@ -71,6 +71,34 @@ class TestEBSScanner(unittest.TestCase):
         self.assertEqual(finding.metadata["state"], "available")
         self.assertEqual(finding.metadata["volume_type"], "gp3")
 
+    def test_scanner_uses_session_region(self):
+        pages = [
+            {
+                "Volumes": [
+                    {
+                        "VolumeId": "vol-region-test",
+                        "Size": 30,
+                        "State": "available",
+                        "VolumeType": "gp3",
+                        "Attachments": [],
+                    }
+                ]
+            }
+        ]
+
+        session = self.create_session(pages)
+        session.region_name = "us-east-1"
+
+        findings = scan_ebs_volumes(session)
+
+        session.client.assert_any_call("ec2")
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(
+            findings[0].region,
+            "us-east-1",
+        )
+
     def test_attached_volume_is_ignored(self):
         pages = [
             {

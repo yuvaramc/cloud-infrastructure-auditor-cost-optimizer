@@ -15,3 +15,16 @@ SUPPORTED_AWS_REGIONS = {
     "eu-west-2",
     "eu-central-1",
 }
+
+
+def validate_aws_region(region: str) -> str:
+    """Validate and return a supported AWS region."""
+    normalized_region = region.strip().lower()
+
+    if normalized_region not in SUPPORTED_AWS_REGIONS:
+        raise ValueError(
+            f"Unsupported AWS region '{region}'. "
+            f"Supported regions: {', '.join(sorted(SUPPORTED_AWS_REGIONS))}"
+        )
+
+    return normalized_region

@@ -169,3 +169,43 @@ def test_audit_aws_authentication_error(mock_get_aws_session) -> None:
 
     assert result.exit_code != 0
     assert "AWS credentials were not found." in result.output
+
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_region_with_whitespace_and_uppercase(
+    mock_get_aws_session,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "audit",
+            "--region",
+            " AP-SOUTH-1 ",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "region=ap-south-1" in result.output
+
+    mock_get_aws_session.assert_called_once_with(
+        region="ap-south-1"
+    )
+
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_unsupported_region_does_not_create_session(
+    mock_get_aws_session,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "audit",
+            "--region",
+            "moon-west-1",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Unsupported AWS region" in result.output
+
+    mock_get_aws_session.assert_not_called()

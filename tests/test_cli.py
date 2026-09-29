@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 from typer.testing import CliRunner
 
+from app.aws.session import AWSAuthenticationError
 from app.cli.main import app
 
 
@@ -16,7 +19,8 @@ def test_version_command() -> None:
     assert "cloud-auditor version 0.1.0" in result.output
 
 
-def test_audit_default_options() -> None:
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_default_options(mock_get_aws_session) -> None:
     result = runner.invoke(
         app,
         ["audit"],
@@ -26,6 +30,10 @@ def test_audit_default_options() -> None:
     assert "provider=aws" in result.output
     assert "region=us-east-1" in result.output
     assert "resource=all" in result.output
+
+    mock_get_aws_session.assert_called_once_with(
+        region="us-east-1"
+    )
 
 
 def test_audit_custom_options() -> None:
@@ -76,7 +84,8 @@ def test_audit_invalid_resource() -> None:
     assert "Unsupported resource" in result.output
 
 
-def test_audit_default_aws_region() -> None:
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_default_aws_region(mock_get_aws_session) -> None:
     result = runner.invoke(
         app,
         [
@@ -87,8 +96,13 @@ def test_audit_default_aws_region() -> None:
     assert result.exit_code == 0
     assert "region=us-east-1" in result.output
 
+    mock_get_aws_session.assert_called_once_with(
+        region="us-east-1"
+    )
 
-def test_audit_custom_aws_region() -> None:
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_custom_aws_region(mock_get_aws_session) -> None:
     result = runner.invoke(
         app,
         [
@@ -101,8 +115,13 @@ def test_audit_custom_aws_region() -> None:
     assert result.exit_code == 0
     assert "region=ap-south-1" in result.output
 
+    mock_get_aws_session.assert_called_once_with(
+        region="ap-south-1"
+    )
 
-def test_audit_invalid_aws_region() -> None:
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_invalid_aws_region(mock_get_aws_session) -> None:
     result = runner.invoke(
         app,
         [
@@ -114,6 +133,8 @@ def test_audit_invalid_aws_region() -> None:
 
     assert result.exit_code != 0
     assert "Unsupported AWS region" in result.output
+
+    mock_get_aws_session.assert_not_called()
 
 
 def test_audit_gcp_region() -> None:
@@ -133,3 +154,18 @@ def test_audit_gcp_region() -> None:
     assert result.exit_code == 0
     assert "provider=gcp" in result.output
     assert "region=us-central1" in result.output
+
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_aws_authentication_error(mock_get_aws_session) -> None:
+    mock_get_aws_session.side_effect = AWSAuthenticationError(
+        "AWS credentials were not found."
+    )
+
+    result = runner.invoke(
+        app,
+        ["audit"],
+    )
+
+    assert result.exit_code != 0
+    assert "AWS credentials were not found." in result.output

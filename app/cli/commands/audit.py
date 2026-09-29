@@ -1,6 +1,8 @@
 import typer
+from click import ClickException
 
 from app.aws.region import DEFAULT_AWS_REGION, validate_aws_region
+from app.aws.session import AWSAuthenticationError, get_aws_session
 
 app = typer.Typer(help="Audit cloud infrastructure resources.")
 
@@ -50,11 +52,14 @@ def audit(
     if normalized_provider == "aws":
         try:
             selected_region = validate_aws_region(region)
+            get_aws_session(region=selected_region)
         except ValueError as exc:
             raise typer.BadParameter(
                 str(exc),
                 param_hint="--region",
             ) from exc
+        except AWSAuthenticationError as exc:
+            raise ClickException(str(exc)) from exc
 
     typer.echo(
         f"Audit command selected: provider={normalized_provider}, "

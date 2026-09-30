@@ -27,6 +27,17 @@ class AggregatedAuditResult:
         return dict(Counter(finding.resource_type for finding in self.findings))
 
     @property
+    def findings_by_finding_type(self) -> dict[str, int]:
+        """Return the number of findings grouped by finding type."""
+
+        return dict(
+            Counter(
+                finding.metadata.get("finding_type", "unknown")
+                for finding in self.findings
+            )
+        )
+
+    @property
     def findings_by_severity(self) -> dict[str, int]:
         """Return the number of findings grouped by severity."""
 

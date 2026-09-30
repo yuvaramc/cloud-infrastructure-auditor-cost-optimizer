@@ -120,3 +120,25 @@ def test_aggregated_result_calculates_potential_savings() -> None:
     result = AggregatedAuditResult(findings)
 
     assert result.total_potential_savings == 37.50
+
+def test_aggregate_scanner_results_returns_unified_result() -> None:
+    """Scanner results should be converted into an aggregated result."""
+
+    from app.audit.aggregation import aggregate_scanner_results
+
+    ebs_findings = [
+        create_finding("EBS Volume", "vol-001"),
+    ]
+
+    ec2_findings = [
+        create_finding("EC2 Instance", "i-001"),
+        create_finding("EC2 Instance", "i-002"),
+    ]
+
+    result = aggregate_scanner_results([ebs_findings, ec2_findings])
+
+    assert result.total_findings == 3
+    assert result.findings_by_resource_type == {
+        "EBS Volume": 1,
+        "EC2 Instance": 2,
+    }

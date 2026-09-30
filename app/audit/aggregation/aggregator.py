@@ -45,12 +45,7 @@ class AggregatedAuditResult:
 def collect_findings(
     scanner_results: Iterable[Iterable[AuditFinding]],
 ) -> list[AuditFinding]:
-    """Collect findings returned by multiple audit scanners.
-
-    Each scanner result is expected to contain AuditFinding objects.
-    Scanner results that contain no findings contribute nothing to
-    the collected result.
-    """
+    """Collect findings returned by multiple audit scanners."""
 
     findings: list[AuditFinding] = []
 
@@ -58,3 +53,12 @@ def collect_findings(
         findings.extend(scanner_result)
 
     return findings
+
+
+def aggregate_scanner_results(
+    scanner_results: Iterable[Iterable[AuditFinding]],
+) -> AggregatedAuditResult:
+    """Combine scanner results into a unified audit result."""
+
+    findings = collect_findings(scanner_results)
+    return AggregatedAuditResult(findings)

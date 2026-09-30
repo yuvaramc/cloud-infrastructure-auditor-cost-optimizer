@@ -97,6 +97,42 @@ Specify a provider, region, and resource type:
 python -m app.cli.main audit --provider aws --region us-east-1 --resource compute
 ```
 
+### AWS Region Management
+
+AWS audits use `us-east-1` as the default region when no region is specified.
+
+You can select a different AWS region using the `--region` or `-r` option:
+
+```text
+python -m app.cli.main audit --provider aws --region ap-south-1 --resource compute
+```
+
+The region value is normalized to lowercase and validated before an AWS session is created.
+
+Currently supported AWS regions include:
+
+- `us-east-1`
+- `us-east-2`
+- `us-west-1`
+- `us-west-2`
+- `ap-south-1`
+- `ap-southeast-1`
+- `ap-southeast-2`
+- `ap-northeast-1`
+- `eu-west-1`
+- `eu-west-2`
+- `eu-central-1`
+
+If an unsupported AWS region is provided, the CLI reports a validation error and does not create an AWS session.
+
+For example:
+
+```text
+python -m app.cli.main audit --provider aws --region invalid-region
+```
+
+GCP regions use their provider-specific region names and are not validated against the AWS region list.
+
 Supported providers:
 
 - `aws`

@@ -1,26 +1,41 @@
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
+from app.aws.region import DEFAULT_AWS_REGION, validate_aws_region
+
 
 class AWSAuthenticationError(Exception):
     """Raised when AWS authentication fails."""
 
 
-def create_aws_session(profile_name: str | None = None):
+def create_aws_session(
+    profile_name: str | None = None,
+    region: str | None = None,
+):
     """
     Create a Boto3 session using the user's AWS configuration.
 
     Args:
         profile_name: Optional AWS profile name.
+        region: Optional AWS region. Uses the default region when omitted.
 
     Returns:
         A configured boto3.Session object.
     """
     try:
-        if profile_name:
-            return boto3.Session(profile_name=profile_name)
+        selected_region = validate_aws_region(
+            region or DEFAULT_AWS_REGION
+        )
 
-        return boto3.Session()
+        if profile_name:
+            return boto3.Session(
+                profile_name=profile_name,
+                region_name=selected_region,
+            )
+
+        return boto3.Session(
+            region_name=selected_region
+        )
 
     except (BotoCoreError, ValueError) as exc:
         raise AWSAuthenticationError(
@@ -117,6 +132,7 @@ def validate_aws_credentials(session) -> bool:
 def get_aws_session(
     profile_name: str | None = None,
     role_arn: str | None = None,
+    region: str | None = None,
 ):
     """
     Create and validate an AWS session.
@@ -128,11 +144,15 @@ def get_aws_session(
     Args:
         profile_name: Optional AWS profile name.
         role_arn: Optional IAM role ARN.
+        region: Optional AWS region. Uses the default region when omitted.
 
     Returns:
         An authenticated boto3.Session object.
     """
-    session = create_aws_session(profile_name)
+    session = create_aws_session(
+        profile_name=profile_name,
+        region=region,
+    )
 
     if role_arn:
         session = assume_aws_role(session, role_arn)

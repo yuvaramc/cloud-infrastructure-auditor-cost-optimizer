@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 from botocore.exceptions import ClientError, NoCredentialsError
 
+from app.aws.region import DEFAULT_AWS_REGION
 from app.aws.session import (
     AWSAuthenticationError,
     assume_aws_role,
@@ -18,15 +19,54 @@ class TestAWSSession(unittest.TestCase):
     def test_create_default_session(self, mock_session):
         create_aws_session()
 
-        mock_session.assert_called_once_with()
+        mock_session.assert_called_once_with(
+            region_name=DEFAULT_AWS_REGION
+        )
 
     @patch("app.aws.session.boto3.Session")
     def test_create_session_with_profile(self, mock_session):
         create_aws_session("test-profile")
 
         mock_session.assert_called_once_with(
-            profile_name="test-profile"
+            profile_name="test-profile",
+            region_name=DEFAULT_AWS_REGION,
         )
+
+    @patch("app.aws.session.boto3.Session")
+    def test_create_session_with_custom_region(self, mock_session):
+        create_aws_session(
+            region="ap-south-1"
+        )
+
+        mock_session.assert_called_once_with(
+            region_name="ap-south-1"
+        )
+
+    @patch("app.aws.session.boto3.Session")
+    def test_create_session_with_profile_and_region(self, mock_session):
+        create_aws_session(
+            profile_name="test-profile",
+            region="ap-south-1",
+        )
+
+        mock_session.assert_called_once_with(
+            profile_name="test-profile",
+            region_name="ap-south-1",
+        )
+
+    @patch("app.aws.session.boto3.Session")
+    def test_create_session_with_invalid_region(self, mock_session):
+        with self.assertRaises(AWSAuthenticationError) as context:
+            create_aws_session(
+                region="invalid-region"
+            )
+
+        self.assertIn(
+            "Unable to create AWS session",
+            str(context.exception),
+        )
+
+        mock_session.assert_not_called()
 
     @patch("app.aws.session.boto3.Session")
     def test_create_session_with_invalid_profile(self, mock_session):
@@ -39,7 +79,7 @@ class TestAWSSession(unittest.TestCase):
 
         self.assertIn(
             "Unable to create AWS session",
-            str(context.exception)
+            str(context.exception),
         )
 
     def test_assume_aws_role(self):
@@ -145,7 +185,7 @@ class TestAWSSession(unittest.TestCase):
 
         self.assertIn(
             "AWS credentials were not found",
-            str(context.exception)
+            str(context.exception),
         )
 
     def test_validate_invalid_credentials(self):
@@ -170,7 +210,7 @@ class TestAWSSession(unittest.TestCase):
 
         self.assertIn(
             "AWS authentication failed",
-            str(context.exception)
+            str(context.exception),
         )
 
     @patch("app.aws.session.validate_aws_credentials")
@@ -183,12 +223,52 @@ class TestAWSSession(unittest.TestCase):
         mock_session = Mock()
         mock_create_session.return_value = mock_session
 
-        result = get_aws_session("test-profile")
+        result = get_aws_session(
+            profile_name="test-profile"
+        )
 
-        mock_create_session.assert_called_once_with("test-profile")
-        mock_validate.assert_called_once_with(mock_session)
+        mock_create_session.assert_called_once_with(
+            profile_name="test-profile",
+            region=None,
+        )
 
-        self.assertEqual(result, mock_session)
+        mock_validate.assert_called_once_with(
+            mock_session
+        )
+
+        self.assertEqual(
+            result,
+            mock_session,
+        )
+
+    @patch("app.aws.session.validate_aws_credentials")
+    @patch("app.aws.session.create_aws_session")
+    def test_get_aws_session_with_region(
+        self,
+        mock_create_session,
+        mock_validate,
+    ):
+        mock_session = Mock()
+        mock_create_session.return_value = mock_session
+
+        result = get_aws_session(
+            profile_name="test-profile",
+            region="ap-south-1",
+        )
+
+        mock_create_session.assert_called_once_with(
+            profile_name="test-profile",
+            region="ap-south-1",
+        )
+
+        mock_validate.assert_called_once_with(
+            mock_session
+        )
+
+        self.assertEqual(
+            result,
+            mock_session,
+        )
 
     @patch("app.aws.session.validate_aws_credentials")
     @patch("app.aws.session.assume_aws_role")
@@ -210,14 +290,64 @@ class TestAWSSession(unittest.TestCase):
             role_arn="arn:aws:iam::123456789012:role/TestRole",
         )
 
-        mock_create_session.assert_called_once_with("test-profile")
+        mock_create_session.assert_called_once_with(
+            profile_name="test-profile",
+            region=None,
+        )
+
         mock_assume_role.assert_called_once_with(
             source_session,
             "arn:aws:iam::123456789012:role/TestRole",
         )
-        mock_validate.assert_called_once_with(assumed_role_session)
 
-        self.assertEqual(result, assumed_role_session)
+        mock_validate.assert_called_once_with(
+            assumed_role_session
+        )
+
+        self.assertEqual(
+            result,
+            assumed_role_session,
+        )
+
+    @patch("app.aws.session.validate_aws_credentials")
+    @patch("app.aws.session.assume_aws_role")
+    @patch("app.aws.session.create_aws_session")
+    def test_get_aws_session_with_role_and_region(
+        self,
+        mock_create_session,
+        mock_assume_role,
+        mock_validate,
+    ):
+        source_session = Mock()
+        assumed_role_session = Mock()
+
+        mock_create_session.return_value = source_session
+        mock_assume_role.return_value = assumed_role_session
+
+        result = get_aws_session(
+            profile_name="test-profile",
+            role_arn="arn:aws:iam::123456789012:role/TestRole",
+            region="ap-south-1",
+        )
+
+        mock_create_session.assert_called_once_with(
+            profile_name="test-profile",
+            region="ap-south-1",
+        )
+
+        mock_assume_role.assert_called_once_with(
+            source_session,
+            "arn:aws:iam::123456789012:role/TestRole",
+        )
+
+        mock_validate.assert_called_once_with(
+            assumed_role_session
+        )
+
+        self.assertEqual(
+            result,
+            assumed_role_session,
+        )
 
 
 if __name__ == "__main__":

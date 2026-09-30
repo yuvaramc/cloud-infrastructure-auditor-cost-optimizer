@@ -5,9 +5,7 @@ from typer.testing import CliRunner
 from app.aws.session import AWSAuthenticationError
 from app.cli.main import app
 
-
 runner = CliRunner()
-
 
 def test_version_command() -> None:
     result = runner.invoke(
@@ -209,3 +207,47 @@ def test_audit_unsupported_region_does_not_create_session(
     assert "Unsupported AWS region" in result.output
 
     mock_get_aws_session.assert_not_called()
+
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_uses_default_region_when_region_option_is_omitted(
+    mock_get_aws_session,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "audit",
+            "--provider",
+            "aws",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "provider=aws" in result.output
+    assert "region=us-east-1" in result.output
+
+    mock_get_aws_session.assert_called_once_with(
+        region="us-east-1"
+    )
+
+
+@patch("app.cli.commands.audit.get_aws_session")
+def test_audit_default_region_is_used_for_all_resources(
+    mock_get_aws_session,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "audit",
+            "--resource",
+            "all",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "region=us-east-1" in result.output
+    assert "resource=all" in result.output
+
+    mock_get_aws_session.assert_called_once_with(
+        region="us-east-1"
+    )

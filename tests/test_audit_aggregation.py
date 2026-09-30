@@ -214,3 +214,78 @@ def test_aggregated_result_uses_unknown_for_missing_finding_type() -> None:
     assert result.findings_by_finding_type == {
         "unknown": 1,
     }
+
+
+def test_aggregated_result_preserves_individual_finding_details() -> None:
+    """Aggregation should preserve the original finding details."""
+
+    from app.audit.aggregation import aggregate_scanner_results
+
+    finding = create_finding(
+        "EBS Volume",
+        "vol-123",
+        severity=FindingSeverity.HIGH,
+        estimated_savings=18.50,
+        metadata={"finding_type": "unattached_volume"},
+    )
+
+    result = aggregate_scanner_results([[finding]])
+
+    assert result.findings[0] is finding
+    assert result.findings[0].resource_type == "EBS Volume"
+    assert result.findings[0].resource_id == "vol-123"
+    assert result.findings[0].severity == FindingSeverity.HIGH
+    assert result.findings[0].estimated_savings == 18.50
+    assert result.findings[0].metadata == {
+        "finding_type": "unattached_volume",
+    }
+
+
+def test_aggregated_result_combines_multiple_summary_categories() -> None:
+    """Aggregation should provide consistent summaries across categories."""
+
+    from app.audit.aggregation import aggregate_scanner_results
+
+    ebs_findings = [
+        create_finding(
+            "EBS Volume",
+            "vol-001",
+            severity=FindingSeverity.HIGH,
+            estimated_savings=10.00,
+            metadata={"finding_type": "unattached_volume"},
+        ),
+        create_finding(
+            "EBS Volume",
+            "vol-002",
+            severity=FindingSeverity.MEDIUM,
+            estimated_savings=5.00,
+            metadata={"finding_type": "unattached_volume"},
+        ),
+    ]
+
+    ec2_findings = [
+        create_finding(
+            "EC2 Instance",
+            "i-001",
+            severity=FindingSeverity.HIGH,
+            estimated_savings=20.00,
+            metadata={"finding_type": "oversized_instance"},
+        ),
+    ]
+
+    result = aggregate_scanner_results([ebs_findings, ec2_findings])
+
+    assert result.total_findings == 3
+    assert result.findings_by_resource_type == {
+        "EBS Volume": 2,
+        "EC2 Instance": 1,
+    }
+    assert result.findings_by_finding_type == {
+        "unattached_volume": 2,
+        "oversized_instance": 1,
+    }
+    assert result.findings_by_severity == {
+        "HIGH": 2,
+        "MEDIUM": 1,
+    }
+    assert result.total_potential_savings == 35.00

@@ -3,17 +3,32 @@
 
 from collections import Counter
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from app.audit.models import AuditFinding
+
+
+@dataclass(frozen=True)
+class ScannerFailure:
+    """Details about a scanner that failed during aggregation."""
+
+    scanner_index: int
+    error_type: str
+    message: str
 
 
 class AggregatedAuditResult:
     """Unified result containing findings collected from audit scanners."""
 
-    def __init__(self, findings: Iterable[AuditFinding]) -> None:
+    def __init__(
+        self,
+        findings: Iterable[AuditFinding],
+        scanner_failures: Iterable[ScannerFailure] | None = None,
+    ) -> None:
         """Initialize an aggregated audit result."""
 
         self.findings = list(findings)
+        self.scanner_failures = list(scanner_failures or [])
 
     @property
     def total_findings(self) -> int:
@@ -90,7 +105,32 @@ def collect_findings(
 def aggregate_scanner_results(
     scanner_results: Iterable[Iterable[AuditFinding] | None],
 ) -> AggregatedAuditResult:
-    """Combine scanner results into a unified audit result."""
+    """Aggregate scanner findings while recording individual scanner failures."""
 
-    findings = collect_findings(scanner_results)
-    return AggregatedAuditResult(findings)
+    findings: list[AuditFinding] = []
+    scanner_failures: list[ScannerFailure] = []
+
+    for scanner_index, scanner_result in enumerate(scanner_results, start=1):
+        if scanner_result is None:
+            continue
+
+        try:
+            # Collect each scanner's complete output before adding it.
+            # This prevents partial results from a failed scanner being included.
+            scanner_findings = list(scanner_result)
+        except Exception as exc:
+            scanner_failures.append(
+                ScannerFailure(
+                    scanner_index=scanner_index,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                )
+            )
+            continue
+
+        findings.extend(scanner_findings)
+
+    return AggregatedAuditResult(
+        findings=findings,
+        scanner_failures=scanner_failures,
+    )

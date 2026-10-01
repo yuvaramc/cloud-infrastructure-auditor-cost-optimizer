@@ -339,3 +339,54 @@ def test_collect_findings_handles_all_none_results() -> None:
     result = collect_findings([None, None])
 
     assert result == []
+
+
+def test_aggregate_scanner_results_records_failure_and_continues() -> None:
+    """A failed scanner should not prevent later scanners from contributing."""
+
+    from app.audit.aggregation import aggregate_scanner_results
+
+    ebs_findings = [
+        create_finding("EBS Volume", "vol-001"),
+        create_finding("EBS Volume", "vol-002"),
+    ]
+
+    ec2_findings = [
+        create_finding("EC2 Instance", "i-001"),
+    ]
+
+    def failing_scanner():
+        yield create_finding("EC2 Instance", "i-partial")
+        raise RuntimeError("EC2 scanner unavailable")
+
+    result = aggregate_scanner_results(
+        [ebs_findings, failing_scanner(), ec2_findings]
+    )
+
+    assert result.total_findings == 3
+    assert [finding.resource_id for finding in result.findings] == [
+        "vol-001",
+        "vol-002",
+        "i-001",
+    ]
+
+    assert len(result.scanner_failures) == 1
+    assert result.scanner_failures[0].scanner_index == 2
+    assert result.scanner_failures[0].error_type == "RuntimeError"
+    assert result.scanner_failures[0].message == "EC2 scanner unavailable"
+
+
+def test_aggregate_scanner_results_has_no_failures_when_scanners_succeed() -> None:
+    """Successful scanners should produce an empty failure collection."""
+
+    from app.audit.aggregation import aggregate_scanner_results
+
+    findings = [
+        create_finding("EBS Volume", "vol-001"),
+        create_finding("EC2 Instance", "i-001"),
+    ]
+
+    result = aggregate_scanner_results([findings, None, []])
+
+    assert result.total_findings == 2
+    assert result.scanner_failures == []

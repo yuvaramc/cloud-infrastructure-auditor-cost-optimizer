@@ -1,3 +1,4 @@
+
 """Audit finding aggregation utilities."""
 
 from collections import Counter
@@ -51,6 +52,23 @@ class AggregatedAuditResult:
             finding.estimated_savings or 0.0
             for finding in self.findings
         )
+
+    @property
+    def potential_savings_by_resource_type(self) -> dict[str, float]:
+        """Return estimated savings grouped by resource type."""
+
+        savings: dict[str, float] = {}
+
+        for finding in self.findings:
+            resource_type = finding.resource_type
+            estimated_savings = finding.estimated_savings
+
+            if estimated_savings is not None:
+                savings[resource_type] = (
+                    savings.get(resource_type, 0.0) + estimated_savings
+                )
+
+        return savings
 
 
 def collect_findings(

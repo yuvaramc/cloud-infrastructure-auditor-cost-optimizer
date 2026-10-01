@@ -289,3 +289,20 @@ def test_aggregated_result_combines_multiple_summary_categories() -> None:
         "MEDIUM": 1,
     }
     assert result.total_potential_savings == 35.00
+def test_aggregated_result_calculates_savings_by_resource_type() -> None:
+    """Potential savings should be grouped by resource type."""
+
+    findings = [
+        create_finding("EBS Volume", "vol-001", estimated_savings=10.00),
+        create_finding("EBS Volume", "vol-002", estimated_savings=5.00),
+        create_finding("EC2 Instance", "i-001", estimated_savings=20.00),
+        create_finding("S3 Bucket", "bucket-001"),
+    ]
+
+    result = AggregatedAuditResult(findings)
+
+    assert result.potential_savings_by_resource_type == {
+        "EBS Volume": 15.00,
+        "EC2 Instance": 20.00,
+    }
+    assert result.total_potential_savings == 35.00

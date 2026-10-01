@@ -1,3 +1,4 @@
+
 from app.audit.aggregation import AggregatedAuditResult
 from app.audit.models import AuditFinding, FindingSeverity
 
@@ -289,6 +290,8 @@ def test_aggregated_result_combines_multiple_summary_categories() -> None:
         "MEDIUM": 1,
     }
     assert result.total_potential_savings == 35.00
+
+
 def test_aggregated_result_calculates_savings_by_resource_type() -> None:
     """Potential savings should be grouped by resource type."""
 
@@ -306,3 +309,33 @@ def test_aggregated_result_calculates_savings_by_resource_type() -> None:
         "EC2 Instance": 20.00,
     }
     assert result.total_potential_savings == 35.00
+
+
+def test_collect_findings_handles_none_scanner_result() -> None:
+    """A scanner returning None should not interrupt collection."""
+
+    from app.audit.aggregation import collect_findings
+
+    ebs_findings = [
+        create_finding("EBS Volume", "vol-001"),
+    ]
+
+    ec2_findings = [
+        create_finding("EC2 Instance", "i-001"),
+    ]
+
+    result = collect_findings([ebs_findings, None, ec2_findings])
+
+    assert len(result) == 2
+    assert result[0].resource_id == "vol-001"
+    assert result[1].resource_id == "i-001"
+
+
+def test_collect_findings_handles_all_none_results() -> None:
+    """All None scanner results should produce an empty collection."""
+
+    from app.audit.aggregation import collect_findings
+
+    result = collect_findings([None, None])
+
+    assert result == []

@@ -72,20 +72,23 @@ class AggregatedAuditResult:
 
 
 def collect_findings(
-    scanner_results: Iterable[Iterable[AuditFinding]],
+    scanner_results: Iterable[Iterable[AuditFinding] | None],
 ) -> list[AuditFinding]:
-    """Collect findings returned by multiple audit scanners."""
+    """Collect findings while safely ignoring empty scanner results."""
 
     findings: list[AuditFinding] = []
 
     for scanner_result in scanner_results:
+        if scanner_result is None:
+            continue
+
         findings.extend(scanner_result)
 
     return findings
 
 
 def aggregate_scanner_results(
-    scanner_results: Iterable[Iterable[AuditFinding]],
+    scanner_results: Iterable[Iterable[AuditFinding] | None],
 ) -> AggregatedAuditResult:
     """Combine scanner results into a unified audit result."""
 

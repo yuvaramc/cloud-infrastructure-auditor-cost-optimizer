@@ -1,21 +1,34 @@
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Any
-
 import typer
 
+from app.cli.commands import audit, cleanup, report
 from app.reporting.exporter import export_audit_results
 
+VERSION = "0.1.0"
 
 app = typer.Typer(
-    help="Cloud Infrastructure Auditor & Cost Optimizer"
+    name="cloud-auditor",
+    help="Audit cloud infrastructure and identify cost optimization opportunities.",
 )
+
+app.add_typer(audit.app, name="audit")
+app.add_typer(report.app, name="report")
+app.add_typer(cleanup.app, name="cleanup")
+
+
+@app.callback()
+def main() -> None:
+    """Cloud Infrastructure Auditor & Cost Optimizer CLI."""
+
+
+@app.command()
+def version() -> None:
+    """Display the current CLI version."""
+    typer.echo(f"cloud-auditor version {VERSION}")
 
 
 @app.command()
 def export(
-    output: Path = typer.Option(
+    output: str = typer.Option(
         ...,
         "--output",
         "-o",
@@ -30,7 +43,7 @@ def export(
 ) -> None:
     """Export audit results to JSON or CSV."""
 
-    results: list[dict[str, Any]] = []
+    results: list[dict] = []
 
     try:
         output_path = export_audit_results(

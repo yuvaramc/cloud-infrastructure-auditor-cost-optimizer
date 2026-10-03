@@ -1,5 +1,4 @@
 import typer
-from click import ClickException
 
 from app.aws.region import DEFAULT_AWS_REGION, validate_aws_region
 from app.aws.session import AWSAuthenticationError, get_aws_session
@@ -59,7 +58,8 @@ def audit(
                 param_hint="--region",
             ) from exc
         except AWSAuthenticationError as exc:
-            raise ClickException(str(exc)) from exc
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
 
     typer.echo(
         f"Audit command selected: provider={normalized_provider}, "

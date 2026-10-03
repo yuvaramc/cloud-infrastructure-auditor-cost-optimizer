@@ -1,6 +1,7 @@
 import typer
 
 from app.reporting.exporter import export_audit_results
+from app.reporting.rich_reporter import render_audit_report
 
 app = typer.Typer(help="Generate infrastructure audit reports.")
 
@@ -38,16 +39,14 @@ def report(
             f"Choose from: {', '.join(SUPPORTED_FORMATS)}"
         )
 
-    if normalized_format == "text":
-        typer.echo(
-            f"Report command selected: format={normalized_format}, "
-            f"output={output}, provider={provider}"
-        )
-        return
-
     # The current audit command does not yet provide a findings
-    # collection, so export an empty, valid report structure.
+    # collection, so use an empty collection until scanner results
+    # are connected to the reporting layer.
     findings = []
+
+    if normalized_format == "text":
+        render_audit_report(findings)
+        return
 
     try:
         export_audit_results(

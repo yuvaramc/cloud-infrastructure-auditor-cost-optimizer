@@ -518,59 +518,14 @@ Therefore, an export may contain no findings when no scanner results have been p
 The project does not claim to provide live billing or complete cloud inventory reporting unless the corresponding scanner functionality is implemented.
 
 ---
-
 # Cleanup and Dry-Run
 
-The cleanup command is designed to provide a safe way to preview resource cleanup operations.
+The cleanup command provides a **read-only preview** of cloud resources that are eligible for cleanup. It is designed to identify safe cleanup candidates without modifying or deleting AWS resources.
 
-Basic command:
+## Basic Command
 
 ```text
 cloud-auditor cleanup
-```
-
-Specify a provider and resource:
-
-```text
-cloud-auditor cleanup --provider aws --resource storage
-```
-
-The cleanup command supports:
-
-```text
---dry-run
---execute
-```
-
-## Dry-Run Mode
-
-Dry-run mode is intended to preview what would be affected without modifying cloud resources.
-
-Example:
-
-```text
-cloud-auditor cleanup --provider aws --resource storage --dry-run
-```
-
-### Important Current Limitation
-
-**Actual cleanup execution is not currently implemented.**
-
-The `--execute` option is exposed by the CLI, but destructive resource deletion/modification is intentionally not performed by the current implementation.
-
-Therefore:
-
-```text
-cloud-auditor cleanup --execute
-```
-
-does **not** delete cloud resources.
-
-This is an important safety limitation of the current release.
-
----
-
-# Cost Estimation
 
 The audit finding model supports:
 

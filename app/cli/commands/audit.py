@@ -1,7 +1,12 @@
+"""CLI commands for infrastructure auditing."""
+
 import typer
 
+from app.audit.aggregation.aggregator import AggregatedAuditResult
 from app.aws.region import DEFAULT_AWS_REGION, validate_aws_region
 from app.aws.session import AWSAuthenticationError, get_aws_session
+from app.reporting.rich_reporter import render_audit_report
+from app.scanners.ebs import EBSScannerError, scan_ebs_volumes
 
 app = typer.Typer(help="Audit cloud infrastructure resources.")
 
@@ -31,8 +36,8 @@ def audit(
 ) -> None:
     """Run infrastructure audit checks."""
 
-    normalized_provider = provider.lower()
-    normalized_resource = resource.lower()
+    normalized_provider = provider.strip().lower()
+    normalized_resource = resource.strip().lower()
 
     if normalized_provider not in SUPPORTED_PROVIDERS:
         raise typer.BadParameter(
@@ -51,7 +56,7 @@ def audit(
     if normalized_provider == "aws":
         try:
             selected_region = validate_aws_region(region)
-            get_aws_session(region=selected_region)
+            session = get_aws_session(region=selected_region)
 
         except ValueError as exc:
             raise typer.BadParameter(
@@ -60,8 +65,49 @@ def audit(
             ) from exc
 
         except AWSAuthenticationError as exc:
-            typer.echo(str(exc))
+            typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
+
+        scanner_results = []
+
+        if normalized_resource in {"all", "storage"}:
+            try:
+                scanner_results.append(
+                    scan_ebs_volumes(session)
+                )
+            except EBSScannerError as exc:
+                typer.echo(
+                    f"EBS scanner failed: {exc}",
+                    err=True,
+                )
+                raise typer.Exit(code=1) from exc
+
+        if normalized_resource in {"compute", "network"}:
+            typer.echo(
+                f"No {normalized_resource} scanners are currently implemented."
+            )
+
+        aggregated_result = AggregatedAuditResult(
+            findings=(
+                finding
+                for scanner_findings in scanner_results
+                for finding in scanner_findings
+            )
+        )
+
+        findings = [
+            finding.to_dict()
+            for finding in aggregated_result.findings
+        ]
+
+        typer.echo(
+            f"Audit completed: provider={normalized_provider}, "
+            f"region={selected_region}, "
+            f"resource={normalized_resource}"
+        )
+
+        render_audit_report(findings)
+        return
 
     typer.echo(
         f"Audit command selected: provider={normalized_provider}, "

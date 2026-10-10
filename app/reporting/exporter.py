@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import csv
@@ -20,9 +21,11 @@ EXPORT_FIELDS = [
     "metadata",
 ]
 
+SUPPORTED_FORMATS = {"json", "csv"}
+
 
 def _serialize_finding(finding: Any) -> dict[str, Any]:
-    """Convert an audit finding into the documented export structure."""
+    """Convert a dictionary or AuditFinding into a JSON/CSV-safe record."""
 
     if hasattr(finding, "to_dict"):
         data = finding.to_dict()
@@ -34,6 +37,7 @@ def _serialize_finding(finding: Any) -> dict[str, Any]:
             for field in EXPORT_FIELDS
         }
 
+    # Normalize enum fields such as FindingSeverity.HIGH.
     severity = data.get("severity")
     if hasattr(severity, "value"):
         severity = severity.value
@@ -44,6 +48,17 @@ def _serialize_finding(finding: Any) -> dict[str, Any]:
 
     metadata = data.get("metadata") or {}
 
+    if not isinstance(metadata, dict):
+        metadata = {"value": metadata}
+
+    # Preserve finding_type if it is already a top-level field.
+    finding_type = data.get("finding_type")
+    if finding_type is None:
+        finding_type = metadata.get("finding_type")
+
+    if hasattr(finding_type, "value"):
+        finding_type = finding_type.value
+
     return {
         "resource_type": data.get("resource_type"),
         "resource_id": data.get("resource_id"),
@@ -51,7 +66,7 @@ def _serialize_finding(finding: Any) -> dict[str, Any]:
         "account_id": data.get("account_id"),
         "severity": severity,
         "status": status,
-        "finding_type": metadata.get("finding_type"),
+        "finding_type": finding_type,
         "description": data.get("description"),
         "estimated_cost": data.get("estimated_cost"),
         "estimated_savings": data.get("estimated_savings"),
@@ -60,32 +75,38 @@ def _serialize_finding(finding: Any) -> dict[str, Any]:
 
 
 def export_json(
-    data: list[dict[str, Any]],
+    data: list[Any],
     output_path: str | Path,
 ) -> Path:
-    """Export audit data to a JSON file."""
+    """Export audit findings to a JSON file."""
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    records = [_serialize_finding(item) for item in data]
+
     with output.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2, default=str)
+        json.dump(
+            records,
+            file,
+            indent=2,
+            ensure_ascii=False,
+            default=str,
+        )
 
     return output
 
 
 def export_csv(
-    data: list[dict[str, Any]],
+    data: list[Any],
     output_path: str | Path,
 ) -> Path:
-    """Export audit records to a CSV file."""
+    """Export audit findings to a CSV file."""
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    if not data:
-        output.write_text("", encoding="utf-8")
-        return output
+    records = [_serialize_finding(item) for item in data]
 
     with output.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
@@ -94,8 +115,21 @@ def export_csv(
             extrasaction="ignore",
         )
 
+        # Write the header even when there are no audit findings.
         writer.writeheader()
-        writer.writerows(data)
+
+        for record in records:
+            row = dict(record)
+
+            # CSV cells are text, so encode nested metadata as JSON.
+            row["metadata"] = json.dumps(
+                row.get("metadata") or {},
+                ensure_ascii=False,
+                sort_keys=True,
+                default=str,
+            )
+
+            writer.writerow(row)
 
     return output
 
@@ -105,22 +139,17 @@ def export_audit_results(
     output_path: str | Path,
     export_format: str,
 ) -> Path:
-    """Export audit results in the requested format."""
+    """Export audit results in JSON or CSV format."""
 
-    export_format = export_format.lower().strip()
+    normalized_format = export_format.strip().lower()
 
-    if export_format not in {"json", "csv"}:
+    if normalized_format not in SUPPORTED_FORMATS:
         raise ValueError(
-            f"Unsupported export format: {export_format}. "
+            f"Unsupported export format: {normalized_format}. "
             "Use 'json' or 'csv'."
         )
 
-    serialized_results = [
-        _serialize_finding(result)
-        for result in results
-    ]
+    if normalized_format == "json":
+        return export_json(results, output_path)
 
-    if export_format == "json":
-        return export_json(serialized_results, output_path)
-
-    return export_csv(serialized_results, output_path)
+    return export_csv(results, output_path)

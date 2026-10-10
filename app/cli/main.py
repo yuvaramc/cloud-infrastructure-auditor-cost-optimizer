@@ -1,6 +1,7 @@
 import typer
 
 from app.cli.commands import audit, cleanup, report
+from app.reporting.exporter import export_audit_results
 
 VERSION = "0.1.0"
 
@@ -23,6 +24,39 @@ def main() -> None:
 def version() -> None:
     """Display the current CLI version."""
     typer.echo(f"cloud-auditor version {VERSION}")
+
+
+@app.command()
+def export(
+    output: str = typer.Option(
+        ...,
+        "--output",
+        "-o",
+        help="Output file path.",
+    ),
+    export_format: str = typer.Option(
+        ...,
+        "--export-format",
+        "-f",
+        help="Export format: json or csv.",
+    ),
+) -> None:
+    """Export audit results to JSON or CSV."""
+
+    results: list[dict] = []
+
+    try:
+        output_path = export_audit_results(
+            results=results,
+            output_path=output,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(
+        f"Audit results exported to {output_path}"
+    )
 
 
 if __name__ == "__main__":

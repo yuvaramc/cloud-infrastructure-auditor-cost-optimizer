@@ -5,6 +5,7 @@ import typer
 from app.audit.aggregation.aggregator import AggregatedAuditResult
 from app.aws.region import DEFAULT_AWS_REGION, validate_aws_region
 from app.aws.session import AWSAuthenticationError, get_aws_session
+from app.reporting.exporter import export_audit_results
 from app.reporting.rich_reporter import render_audit_report
 from app.scanners.ebs import EBSScannerError, scan_ebs_volumes
 
@@ -12,6 +13,7 @@ app = typer.Typer(help="Audit cloud infrastructure resources.")
 
 SUPPORTED_PROVIDERS = ["aws", "gcp"]
 SUPPORTED_RESOURCES = ["all", "compute", "storage", "network"]
+SUPPORTED_EXPORT_FORMATS = ["json", "csv"]
 
 
 @app.callback(invoke_without_command=True)
@@ -33,11 +35,24 @@ def audit(
         "--resource",
         help="Resource type to audit.",
     ),
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Optional file path for exporting audit findings.",
+    ),
+    export_format: str = typer.Option(
+        "json",
+        "--format",
+        "-f",
+        help="Export format when --output is provided: json or csv.",
+    ),
 ) -> None:
-    """Run infrastructure audit checks."""
+    """Run infrastructure audit checks and optionally export findings."""
 
     normalized_provider = provider.strip().lower()
     normalized_resource = resource.strip().lower()
+    normalized_format = export_format.strip().lower()
 
     if normalized_provider not in SUPPORTED_PROVIDERS:
         raise typer.BadParameter(
@@ -51,65 +66,94 @@ def audit(
             f"Choose from: {', '.join(SUPPORTED_RESOURCES)}"
         )
 
+    if normalized_format not in SUPPORTED_EXPORT_FORMATS:
+        raise typer.BadParameter(
+            f"Unsupported export format '{export_format}'. "
+            f"Choose from: {', '.join(SUPPORTED_EXPORT_FORMATS)}",
+            param_hint="--format",
+        )
+
     selected_region = region.strip().lower()
 
-    if normalized_provider == "aws":
-        try:
-            selected_region = validate_aws_region(region)
-            session = get_aws_session(region=selected_region)
-
-        except ValueError as exc:
+    if normalized_provider == "gcp":
+        if output:
             raise typer.BadParameter(
-                str(exc),
-                param_hint="--region",
-            ) from exc
-
-        except AWSAuthenticationError as exc:
-            typer.echo(str(exc), err=True)
-            raise typer.Exit(code=1) from exc
-
-        scanner_results = []
-
-        if normalized_resource in {"all", "storage"}:
-            try:
-                scanner_results.append(
-                    scan_ebs_volumes(session)
-                )
-            except EBSScannerError as exc:
-                typer.echo(
-                    f"EBS scanner failed: {exc}",
-                    err=True,
-                )
-                raise typer.Exit(code=1) from exc
-
-        if normalized_resource in {"compute", "network"}:
-            typer.echo(
-                f"No {normalized_resource} scanners are currently implemented."
+                "GCP auditing is not implemented yet; "
+                "audit findings cannot be exported for GCP."
             )
-
-        aggregated_result = AggregatedAuditResult(
-            findings=(
-                finding
-                for scanner_findings in scanner_results
-                for finding in scanner_findings
-            )
-        )
-
-        findings = [
-            finding.to_dict()
-            for finding in aggregated_result.findings
-        ]
 
         typer.echo(
-            f"Audit completed: provider={normalized_provider}, "
-            f"region={selected_region}, "
-            f"resource={normalized_resource}"
+            f"Audit command selected: provider={normalized_provider}, "
+            f"region={selected_region}, resource={normalized_resource}"
         )
-
-        render_audit_report(findings)
         return
 
-    typer.echo(
-        f"Audit command selected: provider={normalized_provider}, "
-        f"region={selected_region}, resource={normalized_resource}"
+    try:
+        selected_region = validate_aws_region(region)
+        session = get_aws_session(region=selected_region)
+
+    except ValueError as exc:
+        raise typer.BadParameter(
+            str(exc),
+            param_hint="--region",
+        ) from exc
+
+    except AWSAuthenticationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    scanner_results = []
+
+    if normalized_resource in {"all", "storage"}:
+        try:
+            scanner_results.append(scan_ebs_volumes(session))
+        except EBSScannerError as exc:
+            typer.echo(
+                f"EBS scanner failed: {exc}",
+                err=True,
+            )
+            raise typer.Exit(code=1) from exc
+
+    if normalized_resource in {"compute", "network"}:
+        typer.echo(
+            f"No {normalized_resource} scanners are currently implemented."
+        )
+
+    aggregated_result = AggregatedAuditResult(
+        findings=(
+            finding
+            for scanner_findings in scanner_results
+            for finding in scanner_findings
+        )
     )
+
+    findings = [
+        finding.to_dict()
+        for finding in aggregated_result.findings
+    ]
+
+    typer.echo(
+        f"Audit completed: provider={normalized_provider}, "
+        f"region={selected_region}, "
+        f"resource={normalized_resource}"
+    )
+
+    if output:
+        try:
+            export_audit_results(
+                findings,
+                output,
+                normalized_format,
+            )
+        except (OSError, ValueError) as exc:
+            raise typer.BadParameter(
+                str(exc),
+                param_hint="--output",
+            ) from exc
+
+        typer.echo(
+            f"Audit findings exported: format={normalized_format}, "
+            f"output={output}"
+        )
+
+    render_audit_report(findings)

@@ -1,6 +1,8 @@
+
 import typer
 
 from app.reporting.exporter import export_audit_results
+from app.reporting.report_loader import load_audit_results
 from app.reporting.rich_reporter import render_audit_report
 
 app = typer.Typer(help="Generate infrastructure audit reports.")
@@ -22,16 +24,16 @@ def report(
         "-o",
         help="Output file for the generated report.",
     ),
-    provider: str = typer.Option(
-        "aws",
-        "--provider",
-        "-p",
-        help="Cloud provider used for the report.",
+    input_file: str = typer.Option(
+        ...,
+        "--input",
+        "-i",
+        help="Path to an existing audit results JSON or CSV file.",
     ),
 ) -> None:
-    """Generate an infrastructure audit report."""
+    """Generate a report from previously exported audit results."""
 
-    normalized_format = format.lower().strip()
+    normalized_format = format.strip().lower()
 
     if normalized_format not in SUPPORTED_FORMATS:
         raise typer.BadParameter(
@@ -39,10 +41,13 @@ def report(
             f"Choose from: {', '.join(SUPPORTED_FORMATS)}"
         )
 
-    # The current audit command does not yet provide a findings
-    # collection, so use an empty collection until scanner results
-    # are connected to the reporting layer.
-    findings = []
+    try:
+        findings = load_audit_results(input_file)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            str(exc),
+            param_hint="--input",
+        ) from exc
 
     if normalized_format == "text":
         render_audit_report(findings)
@@ -54,10 +59,10 @@ def report(
             output,
             normalized_format,
         )
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
     typer.echo(
         f"Report exported successfully: format={normalized_format}, "
-        f"output={output}, provider={provider}"
+        f"output={output}"
     )
